@@ -17,16 +17,24 @@ async fn main() -> Result<()> {
 
     client.login_with_totp().await?;
 
-    let res = client.get_favorites().await?;
+    // let res = client.get_favorites().await?;
+    // let favs = client
+    //     .get_products_details(vec![String::from("USD")])
+    //     .await?;
+    // for f in favs {
+    //     println!("{}", f.name);
+    // }
 
-    let favs = client.get_product_details(res.clone()).await?;
-    for f in favs {
-        println!("{}", f.name);
-    }
+    // let found = client.search_product_by_name("rhm").await?;
+    // for f in found {
+    //     println!("{}", f.name);
+    // }
 
-    let found = client.search_product_by_name("rhm").await?;
-    for f in found {
-        println!("{}", f.name);
+    let port = client.get_portfolio().await?;
+    let ids: Vec<String> = port.portfolio.value.iter().map(|v| v.id.clone()).collect();
+    let det = client.get_products_details(ids).await?;
+    for d in det {
+        println!("{}", d.name);
     }
 
     Ok(())

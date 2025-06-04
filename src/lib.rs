@@ -6,7 +6,7 @@ use anyhow::Result;
 use reqwest::{Client, cookie::Jar};
 use std::sync::Arc;
 use totp_rs::{Algorithm, Secret, TOTP};
-use types::ProductSearchResponse;
+use types::{PortfolioResponse, ProductSearchResponse};
 
 pub mod types;
 
@@ -123,7 +123,7 @@ impl DegiroClient {
     }
 
     // TODO: use https://docs.rs/serde_path_to_error/0.1.17/serde_path_to_error/
-    pub async fn get_product_details(&self, ids: Vec<u64>) -> Result<Vec<ProductInfo>> {
+    pub async fn get_products_details(&self, ids: Vec<String>) -> Result<Vec<ProductInfo>> {
         let url = format!(
             "https://trader.degiro.nl/product_search/secure/v5/products/info?intAccount={}&sessionId={}",
             self.int_account.unwrap(),
@@ -161,5 +161,28 @@ impl DegiroClient {
 
         let found_products: ProductSearchResponse = response.json().await?;
         Ok(found_products.products)
+    }
+
+    pub async fn get_portfolio(&self) -> Result<PortfolioResponse> {
+        let url = format!(
+            "https://trader.degiro.nl/trading/secure/v5/update/{};jsessionid={}?intAccount={}&jsessionId={}&portfolio=0",
+            self.int_account.unwrap(),
+            self.session_id.clone().unwrap(),
+            self.int_account.unwrap(),
+            self.session_id.clone().unwrap(),
+        );
+
+        let response = self
+            .client
+            .get(&url)
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Content-Type", "application/json; charset=UTF-8")
+            .send()
+            .await?;
+
+        // let res = response.text().await?;
+        // println!("{res}");
+        let res: PortfolioResponse = response.json().await?;
+        Ok(res)
     }
 }

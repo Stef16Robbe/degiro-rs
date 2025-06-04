@@ -2,8 +2,20 @@
 #![allow(unused_imports)]
 
 use reqwest::{Client, cookie::Jar};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::{collections::HashMap, sync::Arc};
+
+pub struct DegiroClient {
+    pub client: Client,
+    pub(crate) username: String,
+    pub(crate) password: String,
+    /// For now just assuming everyone is reasonable
+    /// and uses 2FA for their investments(!!!)
+    pub(crate) totp_secret: String,
+    pub(crate) jar: Option<Arc<Jar>>,
+    pub(crate) session_id: Option<String>,
+    pub(crate) int_account: Option<u64>,
+}
 
 #[derive(Debug, Serialize)]
 pub(crate) struct TotpLoginRequest {
@@ -69,48 +81,52 @@ pub(crate) struct ProductInfoResponse {
 pub struct ProductInfo {
     pub id: String,
     pub name: String,
-    pub(crate) isin: String,
-    pub(crate) symbol: String,
-    pub(crate) contract_size: f64,
-    pub(crate) product_type: String,
-    pub(crate) product_type_id: u32,
-    pub(crate) tradable: bool,
-    pub(crate) category: String,
-    pub(crate) currency: String,
-    pub(crate) active: bool,
+    pub symbol: String,
+    pub currency: String,
+    pub contract_size: f64,
+    pub close_price: f64,
+    pub product_type_id: u32,
+    pub tradable: bool,
 
-    // Optional fields that may not be present in all products
+    // Optional fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) isin: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) product_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) category: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) active: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) strike_price: Option<f64>,
-
-    pub(crate) exchange_id: String,
-    pub(crate) only_eod_prices: bool,
-
-    // Trading-related optional fields
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) exchange_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) only_eod_prices: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) order_time_types: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) buy_order_types: Option<Vec<String>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) sell_order_types: Option<Vec<String>>,
-
-    // Price information
-    pub(crate) close_price: f64,
-    pub(crate) close_price_date: String,
-
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) close_price_date: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) is_shortable: Option<bool>,
-
-    // Feed and data quality
-    pub(crate) feed_quality: String,
-    pub(crate) order_book_depth: u32,
-    pub(crate) vwd_identifier_type: String,
-    pub(crate) vwd_id: String,
-    pub(crate) quality_switchable: bool,
-    pub(crate) quality_switch_free: bool,
-    pub(crate) vwd_module_id: u32,
-
-    // Secondary feed data (optional)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) feed_quality: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) order_book_depth: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) vwd_identifier_type: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) vwd_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) quality_switchable: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) quality_switch_free: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub(crate) vwd_module_id: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) feed_quality_secondary: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -125,8 +141,6 @@ pub struct ProductInfo {
     pub(crate) quality_switch_free_secondary: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) vwd_module_id_secondary: Option<u32>,
-
-    // Special product attributes
     #[serde(skip_serializing_if = "Option::is_none")]
     pub(crate) product_bit_types: Option<Vec<String>>,
 }
@@ -137,14 +151,53 @@ pub(crate) struct ProductSearchResponse {
     pub(crate) products: Vec<ProductInfo>,
 }
 
-pub struct DegiroClient {
-    pub client: Client,
-    pub(crate) username: String,
-    pub(crate) password: String,
-    /// For now just assuming everyone is reasonable
-    /// and uses 2FA for their investments(!!!)
-    pub(crate) totp_secret: String,
-    pub(crate) jar: Option<Arc<Jar>>,
-    pub(crate) session_id: Option<String>,
-    pub(crate) int_account: Option<u64>,
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PortfolioResponse {
+    pub portfolio: Portfolio,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Portfolio {
+    #[serde(rename = "lastUpdated")]
+    pub last_updated: u64,
+
+    pub name: String,
+
+    pub value: Vec<PositionRow>,
+
+    #[serde(rename = "isAdded")]
+    pub is_added: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PositionRow {
+    pub name: String,
+
+    /// A String because currencies have their value as ID
+    /// e.g. "USD"
+    pub id: String,
+
+    pub value: Vec<PositionField>,
+
+    #[serde(rename = "isAdded")]
+    pub is_added: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PositionField {
+    pub name: String,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub value: Option<ValueField>,
+
+    #[serde(rename = "isAdded")]
+    pub is_added: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum ValueField {
+    String(String),
+    Number(f64),
+    Object(HashMap<String, f64>),
 }
