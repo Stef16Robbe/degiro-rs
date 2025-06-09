@@ -4,8 +4,8 @@ use crate::types::{
 };
 use anyhow::Result;
 use jiff::civil::Date;
-use reqwest::{Client, cookie::Jar};
-use std::sync::Arc;
+use log::LevelFilter;
+use reqwest::Client;
 use totp_rs::{Algorithm, Secret, TOTP};
 use types::{
     CheckOrderResponse, HistoryResponse, Order, OrderConfirmationResponse, PortfolioResponse,
@@ -13,30 +13,21 @@ use types::{
 };
 
 pub mod types;
-pub mod util;
 
 impl DegiroClient {
-    pub fn new(username: String, password: String, totp_secret: String) -> Result<Self> {
-        // Create a cookie jar to store cookies (like JSESSIONID)
-        let jar = Arc::new(Jar::default());
+    pub fn finalize(self) -> Result<Self, reqwest::Error> {
+        let connection_verbose = self.log_level <= LevelFilter::Debug;
 
-        // Build the HTTP client with the cookie jar
         let client = Client::builder()
-            .cookie_provider(jar.clone())
+            .cookie_store(true)
             .user_agent(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0",
             )
+            // TODO: is this necessary?
+            .connection_verbose(connection_verbose)
             .build()?;
 
-        Ok(DegiroClient {
-            client,
-            username,
-            password,
-            totp_secret,
-            jar: Some(jar),
-            session_id: None,
-            int_account: None,
-        })
+        Ok(Self { client, ..self })
     }
 
     pub async fn login_with_totp(&mut self) -> Result<()> {

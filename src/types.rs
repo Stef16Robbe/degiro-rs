@@ -1,22 +1,26 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-
+use bon::{Builder, builder};
 use jiff::civil::DateTime;
-use reqwest::{Client, cookie::Jar};
+use log::LevelFilter;
+use reqwest::Client;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, time::Duration};
 
+#[derive(Builder)]
 pub struct DegiroClient {
+    #[builder(skip)]
     pub client: Client,
     pub(crate) username: String,
     pub(crate) password: String,
     /// For now just assuming everyone is reasonable
     /// and uses 2FA for their investments(!!!)
     pub(crate) totp_secret: String,
-    pub(crate) jar: Option<Arc<Jar>>,
     pub(crate) session_id: Option<String>,
     pub(crate) int_account: Option<u64>,
+    #[builder(default = LevelFilter::Off)]
+    pub(crate) log_level: LevelFilter,
 }
 
 #[derive(Debug, Serialize)]

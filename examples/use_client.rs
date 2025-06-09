@@ -4,11 +4,17 @@ use anyhow::Result;
 use degiro_rs::types::{DegiroClient, Order};
 use dotenvy::dotenv;
 use jiff::civil::Date;
+use log::LevelFilter;
+use simple_logger::SimpleLogger;
 use std::env;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv()?;
+    SimpleLogger::new()
+        .with_level(LevelFilter::Debug)
+        .init()
+        .unwrap();
 
     let username = env::var("DEGIRO_USERNAME").expect("username environment variable not set.");
     // Note to self. dotenv interprets certain chars like shell variables! escape them
@@ -16,7 +22,13 @@ async fn main() -> Result<()> {
     let totp_secret =
         env::var("DEGIRO_TOTP_SECRET").expect("totp secret environment variable not set.");
 
-    let mut client = DegiroClient::new(username, password, totp_secret)?;
+    let mut client = DegiroClient::builder()
+        .username(username)
+        .password(password)
+        .totp_secret(totp_secret)
+        .log_level(LevelFilter::Debug)
+        .build()
+        .finalize()?;
 
     client.login_with_totp().await?;
 
@@ -65,7 +77,7 @@ async fn main() -> Result<()> {
         )
         .await?;
 
-    dbg!(hist);
+    dbg!(&hist.data[0]);
 
     Ok(())
 }
