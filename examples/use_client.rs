@@ -3,6 +3,7 @@
 use anyhow::Result;
 use degiro_rs::types::{DegiroClient, Order};
 use dotenvy::dotenv;
+use jiff::civil::Date;
 use std::env;
 
 #[tokio::main]
@@ -55,6 +56,16 @@ async fn main() -> Result<()> {
     // dbg!(&checked);
     // let confirmed = client.confirm_order(&checked.confirmation_id, &order).await?;
     // dbg!(&confirmed);
+
+    let hist = client
+        .get_transaction_history(
+            &Date::new(2024, 01, 01).unwrap(),
+            &Date::new(2025, 06, 01).unwrap(),
+            true,
+        )
+        .await?;
+
+    dbg!(hist);
 
     Ok(())
 }

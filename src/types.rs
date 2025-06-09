@@ -209,41 +209,41 @@ pub struct HistoryResponse {
     pub data: Vec<HistoryItem>,
 }
 
-#[derive(Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct HistoryItem {
-    pub buysell: BuySell,
+// #[derive(Debug, Deserialize)]
+// #[serde(rename_all = "camelCase")]
+// pub struct HistoryItem {
+//     pub buysell: BuySell,
 
-    pub created: DateTime,
+//     pub created: DateTime,
 
-    pub current_traded_size: i32,
+//     pub current_traded_size: i32,
 
-    pub active: bool,
+//     pub active: bool,
 
-    pub last: DateTime,
+//     pub last: DateTime,
 
-    #[serde(default)]
-    pub order_id: Option<String>,
+//     #[serde(default)]
+//     pub order_id: Option<String>,
 
-    pub order_time_type_id: OrderTimeType,
+//     pub order_time_type_id: OrderTimeType,
 
-    pub order_type_id: OrderType,
+//     pub order_type_id: OrderType,
 
-    pub price: f64,
+//     pub price: f64,
 
-    pub product_id: i32,
+//     pub product_id: i32,
 
-    pub size: i32,
+//     pub size: i32,
 
-    pub status: String,
+//     pub status: String,
 
-    pub stop_price: f64,
+//     pub stop_price: f64,
 
-    pub total_traded_size: i32,
+//     pub total_traded_size: i32,
 
-    #[serde(rename = "type")]
-    pub event_type: String,
-}
+//     #[serde(rename = "type")]
+//     pub event_type: String,
+// }
 
 #[derive(Debug, Deserialize)]
 /// From: https://github.com/Chavithra/degiro-connector/blob/bffe906194a6f3e91fafdfb8830efa894e8751a8/degiro_connector/trading/models/order.py#L151
@@ -380,4 +380,36 @@ pub struct OrderConfirmation {
     order_id: String,
     response_datetime: Option<DateTime>,
     request_duration: Option<Duration>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryItem {
+    pub auto_fx_fee_in_base_currency: Option<f64>,
+    pub buysell: Option<BuySell>,
+    pub counter_party: Option<String>,
+    pub date: Option<DateTime>,
+    pub executing_entity_id: Option<String>,
+    pub fee_in_base_currency: Option<f64>,
+    pub fx_rate: Option<f64>,
+    pub gross_fx_rate: Option<f64>,
+    pub id: Option<i64>,
+    pub nett_fx_rate: Option<f64>,
+    pub order_type_id: Option<i64>,
+    pub price: Option<f64>,
+    pub product_id: Option<i64>,
+    pub quantity: Option<i64>,
+    pub total: Option<f64>,
+    pub total_fees_in_base_currency: Option<f64>,
+    pub total_in_base_currency: Option<f64>,
+    pub total_plus_all_fees_in_base_currency: Option<f64>,
+    pub total_plus_fee_in_base_currency: Option<f64>,
+    pub transfered: Option<bool>,
+    pub trading_venue: Option<String>,
+    pub transaction_type_id: Option<i64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct TransactionsHistoryResponse {
+    pub data: Vec<HistoryItem>,
 }

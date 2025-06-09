@@ -3,15 +3,17 @@ use crate::types::{
     TotpLoginRequest, TotpLoginResponse,
 };
 use anyhow::Result;
+use jiff::civil::Date;
 use reqwest::{Client, cookie::Jar};
 use std::sync::Arc;
 use totp_rs::{Algorithm, Secret, TOTP};
 use types::{
     CheckOrderResponse, HistoryResponse, Order, OrderConfirmationResponse, PortfolioResponse,
-    ProductSearchResponse,
+    ProductSearchResponse, TransactionsHistoryResponse,
 };
 
 pub mod types;
+pub mod util;
 
 impl DegiroClient {
     pub fn new(username: String, password: String, totp_secret: String) -> Result<Self> {
@@ -215,6 +217,7 @@ impl DegiroClient {
     /// ```
     pub async fn get_order_history(
         &self,
+        // TODO: use Dates
         from_date: &str,
         to_date: &str,
     ) -> Result<HistoryResponse> {
@@ -297,5 +300,36 @@ impl DegiroClient {
         let res: OrderConfirmationResponse = response.json().await?;
 
         Ok(res)
+    }
+
+    pub async fn get_transaction_history(
+        &self,
+        from_date: &Date,
+        to_date: &Date,
+        // We use the weighted average of the price and FX rate in order to display the information in the aggregated view.
+        aggregate_order: bool,
+    ) -> Result<TransactionsHistoryResponse> {
+        let url = "https://trader.degiro.nl/portfolio-reports/secure/v4/transactions";
+
+        let params = [
+            ("fromDate", from_date.to_string()),
+            ("toDate", to_date.to_string()),
+            ("groupTransactionsByOrder", aggregate_order.to_string()),
+            ("intAccount", self.int_account.unwrap().to_string()),
+            ("sessionId", self.session_id.clone().unwrap()),
+        ];
+
+        let response = self
+            .client
+            .get(url)
+            .query(&params)
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Content-Type", "application/json; charset=UTF-8")
+            .send()
+            .await?;
+
+        let json = response.json::<TransactionsHistoryResponse>().await?;
+
+        Ok(json)
     }
 }
