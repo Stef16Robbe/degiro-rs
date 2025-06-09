@@ -69,15 +69,15 @@ async fn main() -> Result<()> {
     // let confirmed = client.confirm_order(&checked.confirmation_id, &order).await?;
     // dbg!(&confirmed);
 
-    let hist = client
-        .get_transaction_history(
-            &Date::new(2024, 01, 01).unwrap(),
-            &Date::new(2025, 06, 01).unwrap(),
-            true,
-        )
-        .await?;
+    // let hist = client
+    //     .get_transaction_history(
+    //         &Date::new(2024, 01, 01).unwrap(),
+    //         &Date::new(2025, 06, 01).unwrap(),
+    //         true,
+    //     )
+    //     .await?;
 
-    dbg!(&hist.data[0]);
+    // dbg!(&hist.data[0]);
 
     Ok(())
 }

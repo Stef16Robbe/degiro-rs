@@ -1,21 +1,21 @@
 use crate::types::{
-    ClientResponse, DegiroClient, FavoritesResponse, ProductInfo, ProductInfoResponse,
-    TotpLoginRequest, TotpLoginResponse,
+    CheckOrderResponse, ClientResponse, DegiroClient, FavoritesResponse, HistoryResponse, Order,
+    OrderConfirmationResponse, PortfolioResponse, ProductInfo, ProductInfoResponse,
+    ProductSearchResponse, TotpLoginRequest, TotpLoginResponse, TransactionsHistoryResponse,
 };
-use anyhow::Result;
 use jiff::civil::Date;
 use log::LevelFilter;
-use reqwest::Client;
+use reqwest::{Client, RequestBuilder};
 use totp_rs::{Algorithm, Secret, TOTP};
-use types::{
-    CheckOrderResponse, HistoryResponse, Order, OrderConfirmationResponse, PortfolioResponse,
-    ProductSearchResponse, TransactionsHistoryResponse,
-};
 
+pub mod error;
 pub mod types;
 
+use error::DegiroError;
+type Result<T> = std::result::Result<T, DegiroError>;
+
 impl DegiroClient {
-    pub fn finalize(self) -> Result<Self, reqwest::Error> {
+    pub fn finalize(self) -> Result<Self> {
         let connection_verbose = self.log_level <= LevelFilter::Debug;
 
         let client = Client::builder()
@@ -23,15 +23,38 @@ impl DegiroClient {
             .user_agent(
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:138.0) Gecko/20100101 Firefox/138.0",
             )
-            // TODO: is this necessary?
             .connection_verbose(connection_verbose)
             .build()?;
 
         Ok(Self { client, ..self })
     }
 
+    fn session_and_account(&self) -> Result<(&str, u64)> {
+        let session_id = self
+            .session_id
+            .as_deref()
+            .ok_or(DegiroError::MissingSessionId)?;
+        let int_account = self.int_account.ok_or(DegiroError::MissingIntAccount)?;
+        Ok((session_id, int_account))
+    }
+
+    fn build_get(&self, url: &str) -> RequestBuilder {
+        self.client
+            .get(url)
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Referer", "https://trader.degiro.nl/trader/")
+    }
+
+    fn build_post(&self, url: &str) -> RequestBuilder {
+        self.client
+            .post(url)
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Content-Type", "application/json; charset=UTF-8")
+            .header("Referer", "https://trader.degiro.nl/trader/")
+    }
+
     pub async fn login_with_totp(&mut self) -> Result<()> {
-        let totp_url = "https://trader.degiro.nl/login/secure/login/totp";
+        let url = "https://trader.degiro.nl/login/secure/login/totp";
 
         let totp = TOTP::new(
             Algorithm::SHA1,
@@ -40,10 +63,9 @@ impl DegiroClient {
             30,
             Secret::Encoded(self.totp_secret.clone())
                 .to_bytes()
-                .unwrap(),
-        )
-        .unwrap();
-        let totp_token = totp.generate_current().unwrap();
+                .map_err(|_| DegiroError::InvalidTotpSecret)?,
+        )?;
+        let totp_token = totp.generate_current()?;
 
         let totp_payload = TotpLoginRequest {
             username: self.username.clone(),
@@ -53,44 +75,30 @@ impl DegiroClient {
             save_device: false,
         };
 
-        let response = self
-            .client
-            .post(totp_url)
-            .header("Content-Type", "application/json;charset=UTF-8")
-            .header("Accept", "application/json, text/plain, */*")
+        let req = self
+            .build_post(url)
             .header("Origin", "https://trader.degiro.nl")
+            .header("Content-Type", "application/json;charset=UTF-8")
             .header("Referer", "https://trader.degiro.nl/login/nl")
             .json(&totp_payload)
-            .send()
-            .await?;
+            .build()?;
 
-        let totp_response: TotpLoginResponse = response.json().await?;
+        let res = self.client.execute(req).await?;
+        let totp_response: TotpLoginResponse = res.json().await?;
 
-        // Store session ID for future requests
         self.session_id = Some(totp_response.session_id.clone());
-
-        // Now we must get the `intaccount`
-        self.get_int_account().await?;
-
-        Ok(())
+        self.get_int_account().await
     }
 
     pub async fn get_int_account(&mut self) -> Result<()> {
-        let client_url = format!(
+        let url = format!(
             "https://trader.degiro.nl/pa/secure/client?sessionId={}",
-            self.session_id.clone().unwrap()
+            self.session_id
+                .as_deref()
+                .ok_or(DegiroError::MissingSessionId)?
         );
 
-        let response = self
-            .client
-            .get(client_url)
-            .header("Content-Type", "application/json;charset=UTF-8")
-            .header("Accept", "application/json, text/plain, */*")
-            // .header("Origin", "https://trader.degiro.nl")
-            .header("Referer", "https://trader.degiro.nl/trader/")
-            .send()
-            .await?;
-
+        let response = self.build_get(&url).send().await?;
         let client_response: ClientResponse = response.json().await?;
         self.int_account = Some(client_response.data.int_account);
 
@@ -98,198 +106,115 @@ impl DegiroClient {
     }
 
     pub async fn get_favorites(&self) -> Result<Vec<u64>> {
+        let (session_id, int_account) = self.session_and_account()?;
         let url = format!(
             "https://trader.degiro.nl/favorites/secure/v1?intAccount={}&sessionId={}",
-            self.int_account.unwrap(),
-            self.session_id.clone().unwrap()
+            int_account, session_id
         );
 
-        let response = self
-            .client
-            .get(url)
-            .header("Content-Type", "application/json;charset=UTF-8")
-            .header("Accept", "application/json, text/plain, */*")
-            // .header("Origin", "https://trader.degiro.nl")
-            .header("Referer", "https://trader.degiro.nl/trader/")
-            .send()
-            .await?;
-
+        let response = self.build_get(&url).send().await?;
         let fav_response: FavoritesResponse = response.json().await?;
         Ok(fav_response.data.first().unwrap().product_ids.clone())
     }
 
-    // TODO: use https://docs.rs/serde_path_to_error/0.1.17/serde_path_to_error/
     pub async fn get_products_details(&self, ids: Vec<String>) -> Result<Vec<ProductInfo>> {
+        let (session_id, int_account) = self.session_and_account()?;
         let url = format!(
             "https://trader.degiro.nl/product_search/secure/v5/products/info?intAccount={}&sessionId={}",
-            self.int_account.unwrap(),
-            self.session_id.clone().unwrap()
+            int_account, session_id
         );
 
-        let response = self
-            .client
-            .post(&url)
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Content-Type", "application/json; charset=UTF-8")
-            .json(&ids)
-            .send()
-            .await?;
-
+        let response = self.build_post(&url).json(&ids).send().await?;
         let product_info: ProductInfoResponse = response.json().await?;
         Ok(product_info.data.into_values().collect())
     }
 
     pub async fn search_product_by_name(&self, name: &str) -> Result<Vec<ProductInfo>> {
+        let (session_id, int_account) = self.session_and_account()?;
         let url = format!(
             "https://trader.degiro.nl/product_search/secure/v5/products/lookup?offset=0&limit=10&searchText={}&intAccount={}&sessionId={}",
-            name,
-            self.int_account.unwrap(),
-            self.session_id.clone().unwrap()
+            name, int_account, session_id
         );
 
-        let response = self
-            .client
-            .get(&url)
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Content-Type", "application/json; charset=UTF-8")
-            .send()
-            .await?;
-
+        let response = self.build_get(&url).send().await?;
         let found_products: ProductSearchResponse = response.json().await?;
         Ok(found_products.products)
     }
 
     pub async fn get_portfolio(&self) -> Result<PortfolioResponse> {
+        let (session_id, int_account) = self.session_and_account()?;
         let url = format!(
             "https://trader.degiro.nl/trading/secure/v5/update/{};jsessionid={}?intAccount={}&jsessionId={}&portfolio=0",
-            self.int_account.unwrap(),
-            self.session_id.clone().unwrap(),
-            self.int_account.unwrap(),
-            self.session_id.clone().unwrap(),
+            int_account, session_id, int_account, session_id
         );
 
-        let response = self
-            .client
-            .get(&url)
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Content-Type", "application/json; charset=UTF-8")
-            .send()
-            .await?;
-
+        let response = self.build_get(&url).send().await?;
         let res: PortfolioResponse = response.json().await?;
         Ok(res)
     }
 
-    /// Retrieves the user's historical order data from the DEGIRO `/order-history` endpoint.
-    ///
-    /// This returns both open and completed orders placed within the specified date range,
-    /// including buy/sell type, size, price, order status, and more.
-    ///
-    /// # Arguments
-    ///
-    /// * `from_date` - The start date in `dd/mm/yyyy` format (e.g., `"01/01/2024"`).
-    /// * `to_date` - The end date in `dd/mm/yyyy` format (e.g., `"01/01/2025"`).
-    ///
-    /// # Returns
-    ///
-    /// A [`HistoryResponse`] containing a list of historical orders (which may be empty).
-    ///
-    /// # Notes
-    ///
-    /// - This only returns manual orders placed via the DEGIRO interface (not transactions).
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// let history = client.get_order_history("01/01/2024", "01/01/2025").await?;
-    /// for item in history.data {
-    ///     println!("Order: {:?} {} @ {}", item.buysell, item.size, item.price);
-    /// }
-    /// ```
     pub async fn get_order_history(
         &self,
-        // TODO: use Dates
         from_date: &str,
         to_date: &str,
     ) -> Result<HistoryResponse> {
+        let (session_id, int_account) = self.session_and_account()?;
         let url = "https://trader.degiro.nl/portfolio-reports/secure/v4/order-history";
-
         let params = [
             ("fromDate", from_date),
             ("toDate", to_date),
-            ("intAccount", &self.int_account.unwrap().to_string()),
-            ("sessionId", &self.session_id.clone().unwrap()),
+            ("intAccount", &int_account.to_string()),
+            ("sessionId", session_id),
         ];
 
-        let response = self
-            .client
-            .get(url)
-            .query(&params)
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Content-Type", "application/json; charset=UTF-8")
-            .send()
-            .await?;
-
+        let response = self.build_get(url).query(&params).send().await?;
         let res: HistoryResponse = response.json().await?;
-
         Ok(res)
     }
 
     pub async fn check_order(&self, order: &Order) -> Result<CheckOrderResponse> {
+        let (session_id, int_account) = self.session_and_account()?;
         let url = format!(
             "https://trader.degiro.nl/trading/secure/v5/checkOrder;jsessionid={}",
-            self.session_id.clone().unwrap()
+            session_id
         );
 
-        let params = [
-            ("intAccount", self.int_account.unwrap().to_string()),
-            ("sessionId", self.session_id.clone().unwrap()),
-        ];
-
         let response = self
-            .client
-            .post(&url)
-            .query(&params)
+            .build_post(&url)
+            .query(&[
+                ("intAccount", int_account.to_string()),
+                ("sessionId", session_id.to_string()),
+            ])
             .json(order)
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Content-Type", "application/json; charset=UTF-8")
             .send()
             .await?;
 
         let res: CheckOrderResponse = response.json().await?;
-
         Ok(res)
     }
 
-    // TODO: test this :D
     pub async fn confirm_order(
         &self,
         confirmation_id: String,
         order: &Order,
     ) -> Result<OrderConfirmationResponse> {
+        let (session_id, int_account) = self.session_and_account()?;
         let url = format!(
             "https://trader.degiro.nl/trading/secure/v5/order/{};jsessionid={}",
-            confirmation_id,
-            self.session_id.clone().unwrap()
+            confirmation_id, session_id
         );
 
-        let params = [
-            ("intAccount", self.int_account.unwrap().to_string()),
-            ("sessionId", self.session_id.clone().unwrap()),
-        ];
-
         let response = self
-            .client
-            .post(&url)
-            .query(&params)
+            .build_post(&url)
+            .query(&[
+                ("intAccount", int_account.to_string()),
+                ("sessionId", session_id.to_string()),
+            ])
             .json(order)
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Content-Type", "application/json; charset=UTF-8")
             .send()
             .await?;
 
         let res: OrderConfirmationResponse = response.json().await?;
-
         Ok(res)
     }
 
@@ -297,30 +222,21 @@ impl DegiroClient {
         &self,
         from_date: &Date,
         to_date: &Date,
-        // We use the weighted average of the price and FX rate in order to display the information in the aggregated view.
         aggregate_order: bool,
     ) -> Result<TransactionsHistoryResponse> {
+        let (session_id, int_account) = self.session_and_account()?;
         let url = "https://trader.degiro.nl/portfolio-reports/secure/v4/transactions";
 
         let params = [
             ("fromDate", from_date.to_string()),
             ("toDate", to_date.to_string()),
             ("groupTransactionsByOrder", aggregate_order.to_string()),
-            ("intAccount", self.int_account.unwrap().to_string()),
-            ("sessionId", self.session_id.clone().unwrap()),
+            ("intAccount", int_account.to_string()),
+            ("sessionId", session_id.to_string()),
         ];
 
-        let response = self
-            .client
-            .get(url)
-            .query(&params)
-            .header("Accept", "application/json, text/plain, */*")
-            .header("Content-Type", "application/json; charset=UTF-8")
-            .send()
-            .await?;
-
+        let response = self.build_get(url).query(&params).send().await?;
         let json = response.json::<TransactionsHistoryResponse>().await?;
-
         Ok(json)
     }
 }
