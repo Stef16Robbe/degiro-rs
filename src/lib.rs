@@ -3,10 +3,10 @@ use crate::types::{
     TotpLoginRequest, TotpLoginResponse,
 };
 use anyhow::Result;
-use reqwest::{cookie::Jar, Client};
+use reqwest::{Client, cookie::Jar};
 use std::sync::Arc;
 use totp_rs::{Algorithm, Secret, TOTP};
-use types::{HistoryResponse, PortfolioResponse, ProductSearchResponse};
+use types::{CheckOrderResponse, HistoryResponse, Order, PortfolioResponse, ProductSearchResponse};
 
 pub mod types;
 
@@ -210,7 +210,11 @@ impl DegiroClient {
     ///     println!("Order: {:?} {} @ {}", item.buysell, item.size, item.price);
     /// }
     /// ```
-    pub async fn get_order_history(&self, from_date: &str, to_date: &str) -> Result<HistoryResponse> {
+    pub async fn get_order_history(
+        &self,
+        from_date: &str,
+        to_date: &str,
+    ) -> Result<HistoryResponse> {
         let url = "https://trader.degiro.nl/portfolio-reports/secure/v4/order-history";
 
         let params = [
@@ -230,6 +234,32 @@ impl DegiroClient {
             .await?;
 
         let res: HistoryResponse = response.json().await?;
+
+        Ok(res)
+    }
+
+    pub async fn check_order(&self, order: &Order) -> Result<CheckOrderResponse> {
+        let url = format!(
+            "https://trader.degiro.nl/trading/secure/v5/checkOrder;jsessionid={}",
+            self.session_id.clone().unwrap()
+        );
+
+        let params = [
+            ("intAccount", self.int_account.unwrap().to_string()),
+            ("sessionId", self.session_id.clone().unwrap()),
+        ];
+
+        let response = self
+            .client
+            .post(&url)
+            .query(&params)
+            .json(order)
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Content-Type", "application/json; charset=UTF-8")
+            .send()
+            .await?;
+
+        let res: CheckOrderResponse = response.json().await?;
 
         Ok(res)
     }

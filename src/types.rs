@@ -2,9 +2,10 @@
 #![allow(unused_imports)]
 
 use jiff::civil::DateTime;
-use reqwest::{cookie::Jar, Client};
-use serde::{Deserialize, Deserializer, Serialize};
-use std::{collections::HashMap, sync::Arc};
+use reqwest::{Client, cookie::Jar};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use serde_json::Value;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
 pub struct DegiroClient {
     pub client: Client,
@@ -245,14 +246,15 @@ pub struct HistoryItem {
 }
 
 #[derive(Debug, Deserialize)]
+/// From: https://github.com/Chavithra/degiro-connector/blob/bffe906194a6f3e91fafdfb8830efa894e8751a8/degiro_connector/trading/models/order.py#L151
+/// not sure why it's just 'B' or 'S' for History but for an order it's [OrderAction]
 pub enum BuySell {
     B,
     S,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Copy)]
 #[repr(i32)]
-#[serde(rename_all = "UPPERCASE")]
 /// From: https://github.com/Chavithra/degiro-connector/blob/bffe906194a6f3e91fafdfb8830efa894e8751a8/degiro_connector/trading/models/order.py#L30-L34
 /// not sure what these unknown types are...
 pub enum OrderTimeType {
@@ -260,17 +262,109 @@ pub enum OrderTimeType {
     GoodTillDay = 1,
     Unknown0 = 0,
     Unknown2 = 2,
+    Unknown = -1, // fallback
 }
 
-#[derive(Debug, Deserialize)]
+impl Serialize for OrderTimeType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_i32(*self as i32)
+    }
+}
+
+impl<'de> Deserialize<'de> for OrderTimeType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v = i32::deserialize(deserializer)?;
+        Ok(match v {
+            0 => OrderTimeType::Unknown0,
+            1 => OrderTimeType::GoodTillDay,
+            2 => OrderTimeType::Unknown2,
+            3 => OrderTimeType::GoodTillCanceled,
+            _ => OrderTimeType::Unknown,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 #[repr(i32)]
 /// From: https://github.com/Chavithra/degiro-connector/blob/bffe906194a6f3e91fafdfb8830efa894e8751a8/degiro_connector/trading/models/order.py#L14-L27
 /// TODO: Find out remaining types & whether they are relevant
 pub enum OrderType {
     Limit = 0,
-    Market = 2,
     StopLimit = 1,
+    Market = 2,
     StopLoss = 3,
-    #[serde(other)]
-    Unknown,
+    Unknown = -1, // fallback
+}
+
+impl Serialize for OrderType {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_i32(*self as i32)
+    }
+}
+
+impl<'de> Deserialize<'de> for OrderType {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v = i32::deserialize(deserializer)?;
+        Ok(match v {
+            0 => OrderType::Limit,
+            1 => OrderType::StopLimit,
+            2 => OrderType::Market,
+            3 => OrderType::StopLoss,
+            _ => OrderType::Unknown,
+        })
+    }
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "UPPERCASE")]
+pub enum OrderAction {
+    Buy,
+    Sell,
+}
+
+#[derive(Serialize, Debug)]
+#[serde(rename_all = "camelCase")]
+pub struct Order {
+    pub buy_sell: OrderAction,
+    pub order_type: OrderType,
+    pub product_id: String,
+    pub size: f64,
+    pub price: f64,
+    pub time_type: OrderTimeType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub stop_price: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CheckOrderResponse {
+    pub data: OrderCheck,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderCheck {
+    pub auto_fx_conversion_rate: Option<f64>,
+    pub confirmation_id: String,
+    pub free_space_new: Option<f64>,
+    pub response_datetime: Option<DateTime>,
+    pub request_duration: Option<Duration>,
+    pub transaction_auto_fx_opposite_surcharges: Option<Vec<Value>>,
+    pub transaction_auto_fx_surcharges: Option<Vec<Value>>,
+    pub transaction_fee: Option<f64>,
+    pub transaction_fees: Option<Vec<Value>>,
+    pub transaction_opposite_fees: Option<Vec<Value>>,
+    pub transaction_taxes: Option<Vec<Value>>,
+    pub show_ex_ante_report_link: Option<bool>,
 }

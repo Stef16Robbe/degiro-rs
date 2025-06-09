@@ -1,5 +1,5 @@
 use anyhow::Result;
-use degiro_rs::types::DegiroClient;
+use degiro_rs::types::{DegiroClient, Order};
 use dotenvy::dotenv;
 use std::env;
 
@@ -37,8 +37,20 @@ async fn main() -> Result<()> {
     //     println!("{}", d.name);
     // }
 
-    let res = client.get_order_history("01/01/2024", "09/06/2025").await?;
-    dbg!(res);
+    // let res = client.get_order_history("01/01/2024", "09/06/2025").await?;
+    // dbg!(res);
+
+    let order = Order {
+        buy_sell: degiro_rs::types::OrderAction::Buy,
+        order_type: degiro_rs::types::OrderType::Market,
+        product_id: "1819819".to_string(),
+        size: 1.0,
+        price: 1.0,
+        time_type: degiro_rs::types::OrderTimeType::GoodTillCanceled,
+        stop_price: None,
+    };
+    let checked = client.check_order(&order).await?;
+    dbg!(&checked);
 
     Ok(())
 }
