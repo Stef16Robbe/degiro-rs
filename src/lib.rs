@@ -3,10 +3,10 @@ use crate::types::{
     TotpLoginRequest, TotpLoginResponse,
 };
 use anyhow::Result;
-use reqwest::{Client, cookie::Jar};
+use reqwest::{cookie::Jar, Client};
 use std::sync::Arc;
 use totp_rs::{Algorithm, Secret, TOTP};
-use types::{PortfolioResponse, ProductSearchResponse};
+use types::{HistoryResponse, PortfolioResponse, ProductSearchResponse};
 
 pub mod types;
 
@@ -180,9 +180,57 @@ impl DegiroClient {
             .send()
             .await?;
 
-        // let res = response.text().await?;
-        // println!("{res}");
         let res: PortfolioResponse = response.json().await?;
+        Ok(res)
+    }
+
+    /// Retrieves the user's historical order data from the DEGIRO `/order-history` endpoint.
+    ///
+    /// This returns both open and completed orders placed within the specified date range,
+    /// including buy/sell type, size, price, order status, and more.
+    ///
+    /// # Arguments
+    ///
+    /// * `from_date` - The start date in `dd/mm/yyyy` format (e.g., `"01/01/2024"`).
+    /// * `to_date` - The end date in `dd/mm/yyyy` format (e.g., `"01/01/2025"`).
+    ///
+    /// # Returns
+    ///
+    /// A [`HistoryResponse`] containing a list of historical orders (which may be empty).
+    ///
+    /// # Notes
+    ///
+    /// - This only returns manual orders placed via the DEGIRO interface (not transactions).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// let history = client.get_order_history("01/01/2024", "01/01/2025").await?;
+    /// for item in history.data {
+    ///     println!("Order: {:?} {} @ {}", item.buysell, item.size, item.price);
+    /// }
+    /// ```
+    pub async fn get_order_history(&self, from_date: &str, to_date: &str) -> Result<HistoryResponse> {
+        let url = "https://trader.degiro.nl/portfolio-reports/secure/v4/order-history";
+
+        let params = [
+            ("fromDate", from_date),
+            ("toDate", to_date),
+            ("intAccount", &self.int_account.unwrap().to_string()),
+            ("sessionId", &self.session_id.clone().unwrap()),
+        ];
+
+        let response = self
+            .client
+            .get(url)
+            .query(&params)
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Content-Type", "application/json; charset=UTF-8")
+            .send()
+            .await?;
+
+        let res: HistoryResponse = response.json().await?;
+
         Ok(res)
     }
 }

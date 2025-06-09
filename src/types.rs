@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 
-use reqwest::{Client, cookie::Jar};
+use jiff::civil::DateTime;
+use reqwest::{cookie::Jar, Client};
 use serde::{Deserialize, Deserializer, Serialize};
 use std::{collections::HashMap, sync::Arc};
 
@@ -200,4 +201,76 @@ pub enum ValueField {
     String(String),
     Number(f64),
     Object(HashMap<String, f64>),
+}
+
+#[derive(Debug, Deserialize)]
+pub struct HistoryResponse {
+    pub data: Vec<HistoryItem>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistoryItem {
+    pub buysell: BuySell,
+
+    pub created: DateTime,
+
+    pub current_traded_size: i32,
+
+    pub active: bool,
+
+    pub last: DateTime,
+
+    #[serde(default)]
+    pub order_id: Option<String>,
+
+    pub order_time_type_id: OrderTimeType,
+
+    pub order_type_id: OrderType,
+
+    pub price: f64,
+
+    pub product_id: i32,
+
+    pub size: i32,
+
+    pub status: String,
+
+    pub stop_price: f64,
+
+    pub total_traded_size: i32,
+
+    #[serde(rename = "type")]
+    pub event_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub enum BuySell {
+    B,
+    S,
+}
+
+#[derive(Debug, Deserialize)]
+#[repr(i32)]
+#[serde(rename_all = "UPPERCASE")]
+/// From: https://github.com/Chavithra/degiro-connector/blob/bffe906194a6f3e91fafdfb8830efa894e8751a8/degiro_connector/trading/models/order.py#L30-L34
+/// not sure what these unknown types are...
+pub enum OrderTimeType {
+    GoodTillCanceled = 3,
+    GoodTillDay = 1,
+    Unknown0 = 0,
+    Unknown2 = 2,
+}
+
+#[derive(Debug, Deserialize)]
+#[repr(i32)]
+/// From: https://github.com/Chavithra/degiro-connector/blob/bffe906194a6f3e91fafdfb8830efa894e8751a8/degiro_connector/trading/models/order.py#L14-L27
+/// TODO: Find out remaining types & whether they are relevant
+pub enum OrderType {
+    Limit = 0,
+    Market = 2,
+    StopLimit = 1,
+    StopLoss = 3,
+    #[serde(other)]
+    Unknown,
 }

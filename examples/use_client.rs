@@ -30,12 +30,15 @@ async fn main() -> Result<()> {
     //     println!("{}", f.name);
     // }
 
-    let port = client.get_portfolio().await?;
-    let ids: Vec<String> = port.portfolio.value.iter().map(|v| v.id.clone()).collect();
-    let det = client.get_products_details(ids).await?;
-    for d in det {
-        println!("{}", d.name);
-    }
+    // let port = client.get_portfolio().await?;
+    // let ids: Vec<String> = port.portfolio.value.iter().map(|v| v.id.clone()).collect();
+    // let det = client.get_products_details(ids).await?;
+    // for d in det {
+    //     println!("{}", d.name);
+    // }
+
+    let res = client.get_order_history("01/01/2024", "09/06/2025").await?;
+    dbg!(res);
 
     Ok(())
 }
