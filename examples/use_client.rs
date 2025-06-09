@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+#![allow(unused_imports)]
 use anyhow::Result;
 use degiro_rs::types::{DegiroClient, Order};
 use dotenvy::dotenv;
@@ -40,17 +42,19 @@ async fn main() -> Result<()> {
     // let res = client.get_order_history("01/01/2024", "09/06/2025").await?;
     // dbg!(res);
 
-    let order = Order {
-        buy_sell: degiro_rs::types::OrderAction::Buy,
-        order_type: degiro_rs::types::OrderType::Market,
-        product_id: "1819819".to_string(),
-        size: 1.0,
-        price: 1.0,
-        time_type: degiro_rs::types::OrderTimeType::GoodTillCanceled,
-        stop_price: None,
-    };
-    let checked = client.check_order(&order).await?;
-    dbg!(&checked);
+    // let order = Order {
+    //     buy_sell: degiro_rs::types::OrderAction::Buy,
+    //     order_type: degiro_rs::types::OrderType::Market,
+    //     product_id: "1819819".to_string(),
+    //     size: 1.0,
+    //     price: 1.0,
+    //     time_type: degiro_rs::types::OrderTimeType::GoodTillCanceled,
+    //     stop_price: None,
+    // };
+    // let checked = client.check_order(&order).await?;
+    // dbg!(&checked);
+    // let confirmed = client.confirm_order(&checked.confirmation_id, &order).await?;
+    // dbg!(&confirmed);
 
     Ok(())
 }

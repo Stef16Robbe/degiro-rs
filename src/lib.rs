@@ -6,7 +6,10 @@ use anyhow::Result;
 use reqwest::{Client, cookie::Jar};
 use std::sync::Arc;
 use totp_rs::{Algorithm, Secret, TOTP};
-use types::{CheckOrderResponse, HistoryResponse, Order, PortfolioResponse, ProductSearchResponse};
+use types::{
+    CheckOrderResponse, HistoryResponse, Order, OrderConfirmationResponse, PortfolioResponse,
+    ProductSearchResponse,
+};
 
 pub mod types;
 
@@ -260,6 +263,38 @@ impl DegiroClient {
             .await?;
 
         let res: CheckOrderResponse = response.json().await?;
+
+        Ok(res)
+    }
+
+    // TODO: test this :D
+    pub async fn confirm_order(
+        &self,
+        confirmation_id: String,
+        order: &Order,
+    ) -> Result<OrderConfirmationResponse> {
+        let url = format!(
+            "https://trader.degiro.nl/trading/secure/v5/order/{};jsessionid={}",
+            confirmation_id,
+            self.session_id.clone().unwrap()
+        );
+
+        let params = [
+            ("intAccount", self.int_account.unwrap().to_string()),
+            ("sessionId", self.session_id.clone().unwrap()),
+        ];
+
+        let response = self
+            .client
+            .post(&url)
+            .query(&params)
+            .json(order)
+            .header("Accept", "application/json, text/plain, */*")
+            .header("Content-Type", "application/json; charset=UTF-8")
+            .send()
+            .await?;
+
+        let res: OrderConfirmationResponse = response.json().await?;
 
         Ok(res)
     }

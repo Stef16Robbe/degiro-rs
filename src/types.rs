@@ -368,3 +368,16 @@ pub struct OrderCheck {
     pub transaction_taxes: Option<Vec<Value>>,
     pub show_ex_ante_report_link: Option<bool>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct OrderConfirmationResponse {
+    pub data: OrderConfirmation,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OrderConfirmation {
+    order_id: String,
+    response_datetime: Option<DateTime>,
+    request_duration: Option<Duration>,
+}
