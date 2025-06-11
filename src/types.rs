@@ -449,3 +449,45 @@ pub struct CurrencyPair {
     pub id: i64, // Some are -1 or -2, so signed
     pub price: String,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct AccountOverviewResponse {
+    pub data: AccountOverview,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountOverview {
+    pub cash_movements: Vec<CashMovement>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CashMovement {
+    // TODO: these are sometimes null, might mean diff response?
+    pub balance: Option<Balance>,
+    pub currency: String,
+    pub date: String,
+    pub description: String,
+    pub id: u64,
+    pub r#type: String,
+    pub value_date: String,
+    pub change: Option<f64>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Balance {
+    pub cash_fund: Option<Vec<CashFundEntry>>,
+    pub flatex_cash: Option<f64>,
+    pub total: f64,
+    pub unsettled_cash: f64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CashFundEntry {
+    pub id: u64,
+    pub participation: f64,
+    pub price: f64,
+}

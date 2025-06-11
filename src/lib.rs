@@ -12,7 +12,7 @@ pub mod error;
 pub mod types;
 
 use error::DegiroError;
-use types::AccountInfoResponse;
+use types::{AccountInfo, AccountInfoResponse, AccountOverview, AccountOverviewResponse};
 type Result<T> = std::result::Result<T, DegiroError>;
 
 impl DegiroClient {
@@ -243,7 +243,7 @@ impl DegiroClient {
         Ok(json)
     }
 
-    pub async fn get_account_info(&self) -> Result<AccountInfoResponse> {
+    pub async fn get_account_info(&self) -> Result<AccountInfo> {
         let (session_id, int_account) = self.session_and_account()?;
         let url = format!(
             "https://trader.degiro.nl/trading/secure/v5/account/info/{};jsessionid={}",
@@ -253,6 +253,26 @@ impl DegiroClient {
         let response = self.build_get(&url).send().await?;
         let json: AccountInfoResponse = response.json().await?;
 
-        Ok(json)
+        Ok(json.data)
+    }
+
+    pub async fn get_account_overview(
+        &self,
+        from_date: &str,
+        to_date: &str,
+    ) -> Result<AccountOverview> {
+        let (session_id, int_account) = self.session_and_account()?;
+        let url = "https://trader.degiro.nl/portfolio-reports/secure/v6/accountoverview";
+        let params = [
+            ("fromDate", from_date),
+            ("toDate", to_date),
+            ("intAccount", &int_account.to_string()),
+            ("sessionId", &session_id.to_string()),
+        ];
+
+        let response = self.build_get(&url).query(&params).send().await?;
+        let json: AccountOverviewResponse = response.json().await?;
+
+        Ok(json.data)
     }
 }

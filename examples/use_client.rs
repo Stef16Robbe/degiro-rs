@@ -79,8 +79,13 @@ async fn main() -> Result<()> {
 
     // dbg!(&hist.data[0]);
 
-    let info = client.get_account_info().await?;
-    dbg!(info);
+    // let info = client.get_account_info().await?;
+    // dbg!(info);
+
+    let ovw = client
+        .get_account_overview("2025-01-01", "2025-02-01")
+        .await?;
+    dbg!(ovw);
 
     Ok(())
 }
