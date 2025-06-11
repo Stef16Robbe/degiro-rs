@@ -417,3 +417,35 @@ pub struct HistoryItem {
 pub struct TransactionsHistoryResponse {
     pub data: Vec<HistoryItem>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct AccountInfoResponse {
+    pub data: AccountInfo,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountInfo {
+    pub base_currency: String,
+    pub cash_funds: HashMap<String, Vec<CashFund>>,
+    pub client_id: u64,
+    pub currency_pairs: HashMap<String, CurrencyPair>,
+    // TODO: this can be an enum if we know the possible values
+    pub margin_type: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CashFund {
+    pub flatex: bool,
+    pub id: u64,
+    pub name: String,
+
+    #[serde(rename = "productIds")]
+    pub product_ids: Vec<u64>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CurrencyPair {
+    pub id: i64, // Some are -1 or -2, so signed
+    pub price: String,
+}

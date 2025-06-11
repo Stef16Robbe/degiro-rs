@@ -12,6 +12,7 @@ pub mod error;
 pub mod types;
 
 use error::DegiroError;
+use types::AccountInfoResponse;
 type Result<T> = std::result::Result<T, DegiroError>;
 
 impl DegiroClient {
@@ -35,6 +36,7 @@ impl DegiroClient {
             .as_deref()
             .ok_or(DegiroError::MissingSessionId)?;
         let int_account = self.int_account.ok_or(DegiroError::MissingIntAccount)?;
+
         Ok((session_id, int_account))
     }
 
@@ -193,6 +195,7 @@ impl DegiroClient {
         Ok(res)
     }
 
+    // TODO: test this :)
     pub async fn confirm_order(
         &self,
         confirmation_id: String,
@@ -236,7 +239,20 @@ impl DegiroClient {
         ];
 
         let response = self.build_get(url).query(&params).send().await?;
-        let json = response.json::<TransactionsHistoryResponse>().await?;
+        let json: TransactionsHistoryResponse = response.json().await?;
+        Ok(json)
+    }
+
+    pub async fn get_account_info(&self) -> Result<AccountInfoResponse> {
+        let (session_id, int_account) = self.session_and_account()?;
+        let url = format!(
+            "https://trader.degiro.nl/trading/secure/v5/account/info/{};jsessionid={}",
+            int_account, session_id
+        );
+
+        let response = self.build_get(&url).send().await?;
+        let json: AccountInfoResponse = response.json().await?;
+
         Ok(json)
     }
 }

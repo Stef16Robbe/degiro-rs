@@ -79,5 +79,8 @@ async fn main() -> Result<()> {
 
     // dbg!(&hist.data[0]);
 
+    let info = client.get_account_info().await?;
+    dbg!(info);
+
     Ok(())
 }
