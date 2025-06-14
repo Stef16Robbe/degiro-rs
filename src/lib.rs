@@ -13,6 +13,7 @@ pub mod types;
 
 use error::DegiroError;
 use types::{AccountInfo, AccountInfoResponse, AccountOverview, AccountOverviewResponse};
+
 type Result<T> = std::result::Result<T, DegiroError>;
 
 impl DegiroClient {
@@ -157,16 +158,19 @@ impl DegiroClient {
 
     pub async fn get_order_history(
         &self,
-        from_date: &str,
-        to_date: &str,
+        from_date_raw: &str,
+        to_date_raw: &str,
     ) -> Result<HistoryResponse> {
+        let from_date: Date = from_date_raw.parse()?;
+        let to_date: Date = to_date_raw.parse()?;
+
         let (session_id, int_account) = self.session_and_account()?;
         let url = "https://trader.degiro.nl/portfolio-reports/secure/v4/order-history";
         let params = [
-            ("fromDate", from_date),
-            ("toDate", to_date),
-            ("intAccount", &int_account.to_string()),
-            ("sessionId", session_id),
+            ("fromDate", from_date.to_string()),
+            ("toDate", to_date.to_string()),
+            ("intAccount", int_account.to_string()),
+            ("sessionId", session_id.to_string()),
         ];
 
         let response = self.build_get(url).query(&params).send().await?;
@@ -198,7 +202,7 @@ impl DegiroClient {
     // TODO: test this :)
     pub async fn confirm_order(
         &self,
-        confirmation_id: String,
+        confirmation_id: &str,
         order: &Order,
     ) -> Result<OrderConfirmationResponse> {
         let (session_id, int_account) = self.session_and_account()?;
@@ -223,10 +227,13 @@ impl DegiroClient {
 
     pub async fn get_transaction_history(
         &self,
-        from_date: &Date,
-        to_date: &Date,
+        from_date_raw: &str,
+        to_date_raw: &str,
         aggregate_order: bool,
     ) -> Result<TransactionsHistoryResponse> {
+        let from_date: Date = from_date_raw.parse()?;
+        let to_date: Date = to_date_raw.parse()?;
+
         let (session_id, int_account) = self.session_and_account()?;
         let url = "https://trader.degiro.nl/portfolio-reports/secure/v4/transactions";
 
@@ -258,16 +265,19 @@ impl DegiroClient {
 
     pub async fn get_account_overview(
         &self,
-        from_date: &str,
-        to_date: &str,
+        from_date_raw: &str,
+        to_date_raw: &str,
     ) -> Result<AccountOverview> {
+        let from_date: Date = from_date_raw.parse()?;
+        let to_date: Date = to_date_raw.parse()?;
+
         let (session_id, int_account) = self.session_and_account()?;
         let url = "https://trader.degiro.nl/portfolio-reports/secure/v6/accountoverview";
         let params = [
-            ("fromDate", from_date),
-            ("toDate", to_date),
-            ("intAccount", &int_account.to_string()),
-            ("sessionId", &session_id.to_string()),
+            ("fromDate", from_date.to_string()),
+            ("toDate", to_date.to_string()),
+            ("intAccount", int_account.to_string()),
+            ("sessionId", session_id.to_string()),
         ];
 
         let response = self.build_get(&url).query(&params).send().await?;

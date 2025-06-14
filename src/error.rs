@@ -28,4 +28,7 @@ pub enum DegiroError {
 
     #[error("TOTP time error: {0}")]
     Time(#[from] SystemTimeError),
+
+    #[error("invalid date: {0}")]
+    DateParse(#[from] jiff::Error),
 }

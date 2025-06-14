@@ -1,16 +1,15 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-use anyhow::Result;
+use anyhow::{Context, Result};
 use degiro_rs::types::{DegiroClient, Order};
 use dotenvy::dotenv;
-use jiff::civil::Date;
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 use std::env;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    dotenv()?;
+    dotenv().context("Make sure you have a dotenv file set up")?;
     SimpleLogger::new()
         .with_level(LevelFilter::Debug)
         .init()
