@@ -57,7 +57,7 @@ impl DegiroClient {
     }
 
     pub async fn login_with_totp(&mut self) -> Result<()> {
-        let url = "https://trader.degiro.nl/login/secure/login/totp";
+        let url = format!("{}/login/secure/login/totp", self.base_url);
 
         let totp = TOTP::new(
             Algorithm::SHA1,
@@ -79,7 +79,7 @@ impl DegiroClient {
         };
 
         let req = self
-            .build_post(url)
+            .build_post(&url)
             .header("Origin", "https://trader.degiro.nl")
             .header("Content-Type", "application/json;charset=UTF-8")
             .header("Referer", "https://trader.degiro.nl/login/nl")
@@ -87,6 +87,13 @@ impl DegiroClient {
             .build()?;
 
         let res = self.client.execute(req).await?;
+        // TODO: handle errors properly
+        // if !res.status().is_success() {
+        //     return Err(DegiroError::LoginFailed(
+        //         res.status().to_string(),
+        //         res.text().await?,
+        //     ));
+        // }
         let totp_response: TotpLoginResponse = res.json().await?;
 
         self.session_id = Some(totp_response.session_id.clone());
@@ -95,7 +102,8 @@ impl DegiroClient {
 
     pub async fn get_int_account(&mut self) -> Result<()> {
         let url = format!(
-            "https://trader.degiro.nl/pa/secure/client?sessionId={}",
+            "{}/pa/secure/client?sessionId={}",
+            self.base_url,
             self.session_id
                 .as_deref()
                 .ok_or(DegiroError::MissingSessionId)?

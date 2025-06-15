@@ -16,7 +16,7 @@ async fn main() -> Result<()> {
         .unwrap();
 
     let username = env::var("DEGIRO_USERNAME").expect("username environment variable not set.");
-    // Note to self. dotenv interprets certain chars like shell variables! escape them
+    // Note to self: dotenv interprets certain chars as shell variables! escape them
     let password = env::var("DEGIRO_PASSWORD").expect("password environment variable not set.");
     let totp_secret =
         env::var("DEGIRO_TOTP_SECRET").expect("totp secret environment variable not set.");
@@ -26,8 +26,7 @@ async fn main() -> Result<()> {
         .password(password)
         .totp_secret(totp_secret)
         .log_level(LevelFilter::Debug)
-        .build()
-        .finalize()?;
+        .finalize();
 
     client.login_with_totp().await?;
 

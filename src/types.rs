@@ -8,48 +8,47 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use std::{collections::HashMap, time::Duration};
 
-#[derive(Builder)]
+#[derive(Builder, Debug)]
+#[builder(finish_fn = finalize)]
 pub struct DegiroClient {
     #[builder(skip)]
     pub client: Client,
     pub(crate) username: String,
     pub(crate) password: String,
-    /// For now just assuming everyone is reasonable
-    /// and uses 2FA for their investments(!!!)
+    // For now just assuming everyone is reasonable
+    // and uses 2FA for their investments(!!!)
     pub(crate) totp_secret: String,
     pub(crate) session_id: Option<String>,
     pub(crate) int_account: Option<u64>,
     #[builder(default = LevelFilter::Off)]
     pub(crate) log_level: LevelFilter,
+    // TODO: do something fancy to only allow this to be set during tests?
+    #[builder(default = "https://trader.degiro.nl".to_string())]
+    pub(crate) base_url: String,
 }
 
 #[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct TotpLoginRequest {
     pub(crate) username: String,
     pub(crate) password: String,
-    #[serde(rename = "queryParams")]
     pub(crate) query_params: serde_json::Value,
-    #[serde(rename = "oneTimePassword")]
     pub(crate) one_time_password: String,
-    #[serde(rename = "saveDevice")]
     pub(crate) save_device: bool,
 }
 
 #[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+// TODO: res can differ
+// [src/lib.rs:97:9] res.text().await? = "{\"captchaRequired\":false,\"loginFailures\":1,\"remainingAttempts\":6,\"smsCount\":0,\"status\":3,\"statusText\":\"badCredentials\"}
 pub(crate) struct TotpLoginResponse {
-    #[serde(rename = "captchaRequired")]
     captcha_required: bool,
-    #[serde(rename = "isPassCodeEnabled")]
     is_pass_code_enabled: bool,
     locale: String,
-    #[serde(rename = "redirectUrl")]
     redirect_url: String,
-    #[serde(rename = "sessionId")]
     pub(crate) session_id: String,
     pub(crate) status: i32,
-    #[serde(rename = "statusText")]
     pub(crate) status_text: String,
-    #[serde(rename = "userTokens")]
     user_tokens: Vec<serde_json::Value>,
 }
 
@@ -213,42 +212,6 @@ pub struct HistoryResponse {
     pub data: Vec<HistoryItem>,
 }
 
-// #[derive(Debug, Deserialize)]
-// #[serde(rename_all = "camelCase")]
-// pub struct HistoryItem {
-//     pub buysell: BuySell,
-
-//     pub created: DateTime,
-
-//     pub current_traded_size: i32,
-
-//     pub active: bool,
-
-//     pub last: DateTime,
-
-//     #[serde(default)]
-//     pub order_id: Option<String>,
-
-//     pub order_time_type_id: OrderTimeType,
-
-//     pub order_type_id: OrderType,
-
-//     pub price: f64,
-
-//     pub product_id: i32,
-
-//     pub size: i32,
-
-//     pub status: String,
-
-//     pub stop_price: f64,
-
-//     pub total_traded_size: i32,
-
-//     #[serde(rename = "type")]
-//     pub event_type: String,
-// }
-
 #[derive(Debug, Deserialize)]
 /// From: https://github.com/Chavithra/degiro-connector/blob/bffe906194a6f3e91fafdfb8830efa894e8751a8/degiro_connector/trading/models/order.py#L151
 /// not sure why it's just 'B' or 'S' for History but for an order it's [OrderAction]
@@ -259,8 +222,8 @@ pub enum BuySell {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(i32)]
-/// From: https://github.com/Chavithra/degiro-connector/blob/bffe906194a6f3e91fafdfb8830efa894e8751a8/degiro_connector/trading/models/order.py#L30-L34
-/// not sure what these unknown types are...
+// From: https://github.com/Chavithra/degiro-connector/blob/bffe906194a6f3e91fafdfb8830efa894e8751a8/degiro_connector/trading/models/order.py#L30-L34
+// not sure what these unknown types are...
 pub enum OrderTimeType {
     GoodTillCanceled = 3,
     GoodTillDay = 1,
@@ -296,8 +259,8 @@ impl<'de> Deserialize<'de> for OrderTimeType {
 
 #[derive(Debug, Clone, Copy)]
 #[repr(i32)]
-/// From: https://github.com/Chavithra/degiro-connector/blob/bffe906194a6f3e91fafdfb8830efa894e8751a8/degiro_connector/trading/models/order.py#L14-L27
-/// TODO: Find out remaining types & whether they are relevant
+// From: https://github.com/Chavithra/degiro-connector/blob/bffe906194a6f3e91fafdfb8830efa894e8751a8/degiro_connector/trading/models/order.py#L14-L27
+// TODO: Find out remaining types & whether they are relevant
 pub enum OrderType {
     Limit = 0,
     StopLimit = 1,
